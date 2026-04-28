@@ -1,0 +1,27 @@
+{
+  "name": "kidzlearn-api",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "node src/server/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.0",
+    "@google-cloud/secret-manager": "^5.6.0",
+    "@google-cloud/storage": "^7.14.0",
+    "@hapi/hapi": "^21.3.12",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "axios": "^1.7.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "firebase": "^11.0.2",
+    "firebase-admin": "^13.0.1",
+    "formidable": "^3.5.2",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
