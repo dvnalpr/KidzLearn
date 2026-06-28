@@ -3,20 +3,20 @@ const { Firestore } = require("@google-cloud/firestore");
 const axios = require("axios");
 const jwt = require("../utils/jwt");
 const admin = require("../firebase/admin");
-const { loadSecrets } = require('../utils/secretManager');
+const { loadSecrets } = require("../utils/secretManager");
 require("dotenv").config();
 
 let firebaseApiKey;
 
 const initializeSecrets = async () => {
-  try{
+  try {
     const secret = await loadSecrets();
     firebaseApiKey = secret.firebaseApiKey;
     console.log("Secrets load successfully");
-  }catch(error){
-    console.log("Failed to load secrets:",error.message);
+  } catch (error) {
+    console.log("Failed to load secrets:", error.message);
   }
-}
+};
 
 initializeSecrets();
 
@@ -42,11 +42,11 @@ const registerUser = async (request, h) => {
     });
 
     const db = admin.firestore();
-    await db.collection('users').doc(userRecord.uid).set({
+    await db.collection("users").doc(userRecord.uid).set({
       email,
       username,
-      exp: 0,       // Initialize exp
-      level: 1,     // Initialize level
+      exp: 0, // Initialize exp
+      level: 1, // Initialize level
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -74,7 +74,7 @@ const loginUser = async (request, h) => {
         email,
         password,
         returnSecureToken: true,
-      }
+      },
     );
 
     // Retrieve the user's Firebase record to get additional information
@@ -82,15 +82,13 @@ const loginUser = async (request, h) => {
     const userId = userRecord.uid; // Get the user's unique ID (uid)
 
     const db = admin.firestore();
-    const userDoc = await db.collection('users').doc(userRecord.uid).get();
+    const userDoc = await db.collection("users").doc(userRecord.uid).get();
 
     if (!userDoc.exists) {
       return h.response({ error: "User data not found" }).code(404);
     }
 
     const userData = userDoc.data();
-
-
 
     // Generate a custom JWT token
     const token = jwt.generateToken({ email });
@@ -109,7 +107,7 @@ const loginUser = async (request, h) => {
   } catch (error) {
     console.error(
       "Error response from Firebase:",
-      error.response?.data || error.message
+      error.response?.data || error.message,
     );
 
     // Always show a generic error message
@@ -187,7 +185,7 @@ const getCategoryMaterials = async (request, h, category) => {
         if (file.name.endsWith("/")) {
           return;
         }
-        
+
         const name = file.name.split("/").pop().split(".")[0]; // Extract name without extension
 
         // Find or create an entry for the file
@@ -267,10 +265,12 @@ const getCollectionData = async (collectionName, _request, h) => {
 
     if (snapshot.empty) {
       console.log(`No documents found in collection: ${collectionName}`);
-      return h.response({
-        status: "success",
-        data: [],
-      }).code(200);
+      return h
+        .response({
+          status: "success",
+          data: [],
+        })
+        .code(200);
     }
 
     const data = snapshot.docs.map((doc) => ({
@@ -280,25 +280,29 @@ const getCollectionData = async (collectionName, _request, h) => {
 
     // console.log(`Fetched data from ${collectionName}:`, data);
 
-    return h.response({
-      status: "success",
-      data,
-    }).code(200);
+    return h
+      .response({
+        status: "success",
+        data,
+      })
+      .code(200);
   } catch (error) {
     console.error(`Failed to retrieve data from ${collectionName}:`, error);
-    return h.response({
-      status: "fail",
-      message: error.message || "Internal Server Error",
-    }).code(500);
+    return h
+      .response({
+        status: "fail",
+        message: error.message || "Internal Server Error",
+      })
+      .code(500);
   }
 };
 
 const getBankSoal = (request, h) => {
-  return getCollectionData('banksoal', request, h);
+  return getCollectionData("banksoal", request, h);
 };
 
 const getQuestionWritting = (request, h) => {
-  return getCollectionData('questionWriting', request, h);
+  return getCollectionData("questionWriting", request, h);
 };
 
 const updateUserProgress = async (userId, expGained, levelGained) => {
@@ -306,7 +310,7 @@ const updateUserProgress = async (userId, expGained, levelGained) => {
 
   try {
     // Fetch the user's current data
-    const userDoc = await db.collection('users').doc(userId).get();
+    const userDoc = await db.collection("users").doc(userId).get();
 
     if (!userDoc.exists) {
       throw new Error("User not found");
@@ -323,7 +327,7 @@ const updateUserProgress = async (userId, expGained, levelGained) => {
     // const newLevel = Math.floor(exp / 100) + 1;
 
     // Update Firestore with new exp and level
-    await db.collection('users').doc(userId).update({
+    await db.collection("users").doc(userId).update({
       exp,
       level,
     });
@@ -340,7 +344,12 @@ const updateExp = async (request, h) => {
   const { userId, expGained, levelGained } = request.payload;
 
   // Validate input
-  if (typeof expGained !== "number" || expGained < 0 || typeof levelGained !== "number" || levelGained < 0) {
+  if (
+    typeof expGained !== "number" ||
+    expGained < 0 ||
+    typeof levelGained !== "number" ||
+    levelGained < 0
+  ) {
     return h
       .response({ error: "Invalid expGained or levelGained value" })
       .code(400);
@@ -359,12 +368,43 @@ const updateExp = async (request, h) => {
       .code(200);
   } catch (error) {
     console.error("Error completing question:", error.message);
-    return h
-      .response({ error: "Could not update progress" })
-      .code(500);
+    return h.response({ error: "Could not update progress" }).code(500);
   }
 };
 
+const getUserProfile = async (request, h) => {
+  const { uid } = request.params;
 
+  try {
+    const db = admin.firestore();
+    const userDoc = await db.collection("users").doc(uid).get();
 
-module.exports = { registerUser, loginUser, getCategoryMaterials, getBankSoal, getQuestionWritting, updateExp  };
+    if (!userDoc.exists) {
+      return h.response({ error: "User not found" }).code(404);
+    }
+
+    const userData = userDoc.data();
+
+    return h
+      .response({
+        username: userData.username,
+        email: userData.email,
+        exp: userData.exp,
+        level: userData.level,
+      })
+      .code(200);
+  } catch (error) {
+    console.error("Error retrieving user profile:", error.message);
+    return h.response({ error: "Could not retrieve user profile" }).code(500);
+  }
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getCategoryMaterials,
+  getBankSoal,
+  getQuestionWritting,
+  updateExp,
+  getUserProfile,
+};

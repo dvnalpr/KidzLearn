@@ -1,6 +1,7 @@
 const handlers = require("../server/handler");
 const Formidable = require("formidable");
 const { getPrediction } = require("../services/inferenceService");
+const validateToken = require("../server/validateToken");
 
 const routes = [
   {
@@ -16,40 +17,67 @@ const routes = [
   {
     method: "GET",
     path: "/animals",
+    options: {
+      pre: [validateToken],
+    },
     handler: (request, h) =>
       handlers.getCategoryMaterials(request, h, "animals"),
   },
   {
     method: "GET",
     path: "/colors",
+    options: {
+      pre: [validateToken],
+    },
     handler: (request, h) =>
       handlers.getCategoryMaterials(request, h, "colors"),
   },
   {
     method: "GET",
     path: "/colorAnimation",
+    options: {
+      pre: [validateToken],
+    },
     handler: (request, h) =>
       handlers.getCategoryMaterials(request, h, "colorAnimation"),
   },
   {
     method: "GET",
     path: "/questionWritting",
+    options: {
+      pre: [validateToken],
+    },
     handler: handlers.getQuestionWritting,
   },
   {
     method: "GET",
     path: "/bankSoal",
+    options: {
+      pre: [validateToken],
+    },
     handler: handlers.getBankSoal,
+  },
+  {
+    method: "GET",
+    path: "/user/{uid}",
+    options: {
+      pre: [validateToken],
+    },
+    handler: handlers.getUserProfile,
   },
   {
     method: "POST",
     path: "/update-progress",
+    options: {
+      pre: [validateToken],
+    },
     handler: handlers.updateExp,
   },
   {
     method: "POST",
     path: "/predict",
     options: {
+      pre: [validateToken],
       payload: {
         allow: "multipart/form-data",
         multipart: true,
@@ -67,7 +95,7 @@ const routes = [
             return resolve(
               h
                 .response({ status: "fail", message: "File upload failed" })
-                .code(400)
+                .code(400),
             );
           }
 
@@ -87,7 +115,7 @@ const routes = [
           } catch (error) {
             console.error("Error:", error);
             resolve(
-              h.response({ status: "fail", message: error.message }).code(500)
+              h.response({ status: "fail", message: error.message }).code(500),
             );
           }
         });
