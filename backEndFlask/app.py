@@ -1,57 +1,74 @@
-from flask import Flask, request, jsonify
 import os
-import numpy as np
-import cv2
-from tensorflow.keras.models import load_model
 
-# Initialize Flask app
+import cv2
+import numpy as np
+import tensorflow as tf
+from flask import Flask, jsonify, request
+from werkzeug.utils import secure_filename
+
 app = Flask(__name__)
 
-# Load the model and mapping file
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+MODEL_DIR = os.path.join(BASE_DIR, "models")
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+# Load mapping file
 def load_mapping_file(mapping_file):
-    with open(mapping_file, 'r') as f:
+    with open(mapping_file, "r") as f:
         return {int(line.split()[0]): chr(int(line.split()[1])) for line in f}
 
-def load_resources():
-    letter_model = load_model('models/emnist_letter_recognition_model.h5')
-    digit_model = load_model('models/digit_recognition_model.h5')
 
-    letter_mapping = load_mapping_file('models/letter_mapping.txt')
-    digit_mapping = load_mapping_file('models/digit_mapping.txt')
+# Load models
+def load_resources():
+    letter_model = tf.keras.models.load_model(
+        os.path.join(MODEL_DIR, "emnist_letter_recognition_model.h5")
+    )
+    digit_model = tf.keras.models.load_model(
+        os.path.join(MODEL_DIR, "digit_recognition_model.h5")
+    )
+
+    letter_mapping = load_mapping_file(os.path.join(MODEL_DIR, "letter_mapping.txt"))
+    digit_mapping = load_mapping_file(os.path.join(MODEL_DIR, "digit_mapping.txt"))
 
     app.logger.info("Models and mappings loaded successfully!")
     return letter_model, digit_model, letter_mapping, digit_mapping
 
-# Preprocess image function
+
+# Preprocess image
 def preprocess_image(image_path):
-    try:
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-        if image is None:
-            raise ValueError("Invalid image file or unsupported format.")
-        if np.mean(image) > 128:
-            image = 255 - image
-        image_resized = cv2.resize(image, (28, 28))
-        image_normalized = image_resized.astype("float32") / 255.0
-        return np.expand_dims(image_normalized, axis=(0, -1))
-    except Exception as e:
-        raise ValueError(f"Error in preprocessing: {str(e)}")
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
-# Predict function
+    if image is None:
+        raise ValueError("Invalid image file or unsupported format.")
+
+    if np.mean(image) > 128:
+        image = 255 - image
+
+    image = cv2.resize(image, (28, 28))
+    image = image.astype("float32") / 255.0
+
+    return np.expand_dims(image, axis=(0, -1))
+
+
+# Prediction
 def predict_without_true_label(image_path, is_letter):
-    try:
-        image_input = preprocess_image(image_path)
-        model = letter_model if is_letter else digit_model
-        mapping_dict = letter_mapping if is_letter else digit_mapping
-        
-        app.logger.info(f"Using {'letter' if is_letter else 'digit'} model for prediction.")
-        prediction = model.predict(image_input)
-        predicted_label = np.argmax(prediction)
-        predicted_char = mapping_dict[predicted_label]
-        return predicted_char, prediction[0]
-    except Exception as e:
-        raise ValueError(f"Prediction failed: {str(e)}")
+    image_input = preprocess_image(image_path)
 
-# API endpoint for predictions
+    model = letter_model if is_letter else digit_model
+    mapping_dict = letter_mapping if is_letter else digit_mapping
+
+    prediction = model.predict(image_input)
+    predicted_label = int(np.argmax(prediction))
+
+    predicted_char = mapping_dict[predicted_label]
+
+    return predicted_char, prediction[0]
+
+
+# API endpoint
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
@@ -59,30 +76,40 @@ def predict():
             return jsonify({"error": "No image uploaded"}), 400
 
         image = request.files["image"]
-        image_path = os.path.join("uploads", image.filename)
+
+        if not image or image.filename is None:
+            return jsonify({"error": "Invalid file"}), 400
+
+        filename = secure_filename(image.filename)
+        image_path = os.path.join(UPLOAD_FOLDER, filename)
+
         image.save(image_path)
 
         is_letter_param = request.form.get("is_letter")
         if is_letter_param is None:
-            return jsonify({"error": "`is_letter` parameter is required (true/false)."}), 400
+            return jsonify({"error": "`is_letter` is required"}), 400
 
         is_letter = is_letter_param.lower() == "true"
 
-        app.logger.info(f"Received is_letter={is_letter}. Using {'letter' if is_letter else 'digit'} model.")
+        predicted_char, probabilities = predict_without_true_label(
+            image_path, is_letter
+        )
 
-        predicted_char, probabilities = predict_without_true_label(image_path, is_letter)
-        response = {
-            "predicted_char": predicted_char,
-            "probabilities": probabilities.tolist(),
-        }
-        return jsonify(response)
+        return jsonify(
+            {
+                "predicted_char": predicted_char,
+                "probabilities": probabilities.tolist(),
+            }
+        )
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Load models and mappings globally
+
+# Load resources
 letter_model, digit_model, letter_mapping, digit_mapping = load_resources()
 
+
 if __name__ == "__main__":
-    if not os.path.exists("uploads"):
-        os.makedirs("uploads")
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
